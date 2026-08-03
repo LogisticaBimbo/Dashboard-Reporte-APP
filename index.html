@@ -1067,7 +1067,12 @@ const TOP5_DATES = DATA.TOP5_DATES;
 const TOP5_DASH = DATA.TOP5_DASH;
 
 function renderTop5() {
-  const maxPct = TOP5[0].pct;
+if (!TOP5 || TOP5.length === 0) {
+    document.getElementById('top5Rows').innerHTML =
+        '<div class="empty">Sin datos para mostrar</div>';
+    return;
+}
+  const maxPct = TOP5.length ? TOP5[0].pct : 0;
 
   // Rows
   document.getElementById('top5Rows').innerHTML = TOP5.map((s, i) => {
