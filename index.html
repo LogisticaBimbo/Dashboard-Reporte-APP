@@ -373,6 +373,13 @@
   .hist-day-dot { width:10px;height:10px;border-radius:50%;flex-shrink:0; }
   .hist-day-title { font-size:16px;font-weight:700; }
   .hist-day-sub { font-size:12px;color:var(--text2);margin-left:auto;font-family:'DM Mono',monospace; }
+
+  /* FILTRO DE FECHA COMPARTIDO */
+  .date-filter { display:flex;align-items:center;gap:8px; }
+  .date-filter label { color:var(--text2);font-size:11px;font-weight:600; }
+  .date-select { background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 30px 7px 10px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;outline:none; }
+  .date-select:focus { border-color:var(--accent); }
+  @media (max-width:768px){ .date-filter label{display:none;} .date-select{max-width:145px;} }
 </style>
 </head>
 <body>
@@ -387,7 +394,7 @@
       <div class="nav-sub">Bandejas &amp; Dollys · Control diario</div>
     </div>
   </div>
-  <div class="nav-period" id="navPeriod"></div>
+  <div class="date-filter"><label for="fecha-filtro">Fecha del reporte</label><select id="fecha-filtro" class="date-select" aria-label="Fecha del reporte"></select><div class="nav-period" id="navPeriod"></div></div>
 </div>
 
 <div class="main-tabs-bar">
@@ -466,7 +473,7 @@
 <div class="container">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
     <div>
-      <div style="font-size:22px;font-weight:700;letter-spacing:-0.5px;">Reporte del <span id="hoy-amba-fecha-title">—</span></div>
+      <div style="font-size:22px;font-weight:700;letter-spacing:-0.5px;">Reporte del <span id="hoy-int-fecha-title">—</span></div>
       <div style="font-size:12px;color:var(--text3);margin-top:2px;">Región Interior — todas las sucursales · todos los excedentes</div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
@@ -1313,7 +1320,8 @@ renderTop5();
 // ══════════════════════════════════════════════════════════════════
 // HOY DATA — 04/06/2026
 // ══════════════════════════════════════════════════════════════════
-const HOY_DATA = DATA.HOY_DATA;
+let HOY_DATA = DATA.HOY_DATA;
+const DAILY_DATA = DATA.DAILY_DATA || {};
 // ══════════════════════════════════════════════════════════════════
 // HIST_APP_DAYS
 // ══════════════════════════════════════════════════════════════════
@@ -1372,12 +1380,36 @@ function renderDollyTable(tbodyId, tfootId, rows, totalExc) {
   document.getElementById(tfootId).innerHTML=`<tr><td colspan="5">Total dollys en excedente (todas las rutas)</td><td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;">${totalExc} dollys</td></tr>`;
 }
 
+
+function fechaATimestamp(fecha){
+  const p=String(fecha||'').split('/');
+  return p.length===3 ? new Date(Number(p[2]),Number(p[1])-1,Number(p[0])).getTime() : 0;
+}
+function initFechaFiltro(){
+  const selector=document.getElementById('fecha-filtro');
+  if(!selector) return;
+  let fechas=Object.keys(DAILY_DATA).sort((a,b)=>fechaATimestamp(b)-fechaATimestamp(a));
+  if(!fechas.length && HOY_DATA && HOY_DATA.fecha) fechas=[HOY_DATA.fecha];
+  selector.innerHTML=fechas.map(f=>`<option value="${f}">${f}</option>`).join('');
+  if(HOY_DATA && fechas.includes(HOY_DATA.fecha)) selector.value=HOY_DATA.fecha;
+  selector.addEventListener('change',()=>{
+    const seleccionado=DAILY_DATA[selector.value];
+    if(!seleccionado) return;
+    HOY_DATA=seleccionado;
+    renderHoy();
+  });
+}
 function renderHoy() {
   const d=HOY_DATA, ambaTotal=d.region_amba_tablada+d.region_amba_foraneos;
-  document.getElementById('navPeriod').textContent=`Último reporte: ${d.fecha}`;
-// Actualizar fechas en titulos y badges
-  document.querySelectorAll('[id*="fecha-title"], [id*="fecha-badge"], .nav-period').forEach(el => { el.textContent = d.fecha; });
-  document.querySelectorAll('h1, h2, h3, div').forEach(el => { if(el.children.length===0 && el.textContent.match(/^Reporte del \d{2}\/\d{2}\/\d{4}$/)) el.textContent = 'Reporte del ' + d.fecha; });
+  document.getElementById('navPeriod').textContent=d.fecha;
+  const fechaAmba=document.getElementById('hoy-amba-fecha-title');
+  const fechaInt=document.getElementById('hoy-int-fecha-title');
+  const badgeAmba=document.getElementById('hoy-fecha-badge');
+  const badgeInt=document.getElementById('hoy-int-fecha-badge');
+  if(fechaAmba) fechaAmba.textContent=d.fecha;
+  if(fechaInt) fechaInt.textContent=d.fecha;
+  if(badgeAmba) badgeAmba.textContent=d.fecha;
+  if(badgeInt) badgeInt.textContent=d.fecha;
   document.getElementById('hoy-amba-kpi-grid').innerHTML=[
     {label:'Sucursales AMBA',value:ambaTotal.toLocaleString('es-AR'),cls:'',badge:'La Tablada + Foráneos'},
     {label:'Bandejas vacías AMBA',value:(d.bandejas_vacias_amba||0).toLocaleString('es-AR'),cls:'orange',badge:'Total región'},
@@ -1450,7 +1482,28 @@ function renderHistAppChart() {
 const EXCEL_FILENAME = DATA.EXCEL_FILENAME;
 const EXCEL_B64 = DATA.EXCEL_B64;
 function exportarExcel(){if(!EXCEL_B64){alert("No hay archivo.");return;}const l=document.createElement("a");l.href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,"+EXCEL_B64;l.download=EXCEL_FILENAME;document.body.appendChild(l);l.click();document.body.removeChild(l);}
-function copiarTabla(tableId,titulo){const t=document.getElementById(tableId);if(!t)return;const f=document.getElementById('hoy-fecha-badge')?.textContent||'';const rows=t.querySelectorAll('thead tr,tbody tr,tfoot tr');let h='';rows.forEach((row,ri)=>{const iH=row.closest('thead')!==null,iF=row.closest('tfoot')!==null;const bg=iH?'#1a1a2e':iF?'#e8edf5':(ri%2===0?'#ffffff':'#f7f9fc');const tx=iH?'#ffffff':'#1a1a1a';const cells=row.querySelectorAll('th,td');let ch='';cells.forEach(c=>{const al=c.classList.contains('r')?'right':'left';const bd=(iH||iF||c.tagName==='TH')?'600':'400';let txt=c.innerText.replace(/^\s+|\s+$/g,'');if(iF&&txt.length>20)txt='Total';ch+=`<td style="padding:7px 10px;border:1px solid #d0d5e0;text-align:${al};font-weight:${bd};color:${tx};background:${bg};font-size:13px;font-family:Arial,sans-serif;">${txt}</td>`;});h+=`<tr>${ch}</tr>`;});const html=`<div style="font-family:Arial,sans-serif;font-size:13px;margin-bottom:6px;"><strong>${titulo}</strong> · ${f}</div><table style="border-collapse:collapse;">${h}</table>`;if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'})})]).then(()=>{const b=document.querySelector(`button[onclick*="${tableId}"]`);if(b){const o=b.textContent;b.textContent='✓ Copiado';b.classList.add('copiado');setTimeout(()=>{b.textContent=o;b.classList.remove('copiado');},2000);}}).catch(()=>abrirVentana(html,titulo));}else{abrirVentana(html,titulo);}}
+function copiarTabla(tableId,titulo){
+  const t=document.getElementById(tableId);
+  if(!t) return;
+  const f=HOY_DATA?.fecha||'';
+  const rows=[...t.querySelectorAll('thead tr,tbody tr,tfoot tr')];
+  const plain=[`${titulo} · ${f}`,...rows.map(row=>[...row.querySelectorAll('th,td')].map(c=>c.innerText.trim()).join('\t'))].join('\n');
+  let body='';
+  rows.forEach((row,ri)=>{
+    const iH=!!row.closest('thead'),iF=!!row.closest('tfoot');
+    const bg=iH?'#1a1a2e':iF?'#e8edf5':(ri%2===0?'#ffffff':'#f7f9fc');
+    const tx=iH?'#ffffff':'#1a1a1a';
+    body+='<tr>'+[...row.querySelectorAll('th,td')].map(c=>`<td style="padding:7px 10px;border:1px solid #d0d5e0;text-align:${c.classList.contains('r')?'right':'left'};font-weight:${iH||iF||c.tagName==='TH'?'600':'400'};color:${tx};background:${bg};font-size:13px;font-family:Arial,sans-serif;">${c.innerText.trim()}</td>`).join('')+'</tr>';
+  });
+  const html=`<div style="font-family:Arial,sans-serif;font-size:13px;margin-bottom:6px;"><strong>${titulo}</strong> · ${f}</div><table style="border-collapse:collapse;">${body}</table>`;
+  const ok=()=>{const b=document.querySelector(`button[onclick*="${tableId}"]`);if(b){const o=b.textContent;b.textContent='✓ Copiado';b.classList.add('copiado');setTimeout(()=>{b.textContent=o;b.classList.remove('copiado');},2000);}};
+  const fallback=()=>{const ta=document.createElement('textarea');ta.value=plain;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');ok();}catch(e){abrirVentana(html,titulo);}finally{document.body.removeChild(ta);}};
+  if(navigator.clipboard&&window.isSecureContext&&window.ClipboardItem){
+    navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]).then(ok).catch(()=>navigator.clipboard.writeText(plain).then(ok).catch(fallback));
+  }else if(navigator.clipboard&&window.isSecureContext){
+    navigator.clipboard.writeText(plain).then(ok).catch(fallback);
+  }else fallback();
+}
 function abrirVentana(html,titulo){const w=window.open('','_blank','width=820,height=520,scrollbars=yes');w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title><style>body{font-family:Arial,sans-serif;padding:24px;background:#f5f5f5;}.box{background:#1a6b44;color:#fff;padding:12px 18px;border-radius:8px;font-size:14px;margin-bottom:18px;}.box strong{font-size:16px;display:block;margin-bottom:4px;}.wrap{background:#fff;padding:16px;border-radius:8px;display:inline-block;}</style></head><body><div class="box"><strong>Seleccioná todo y copiá</strong>Windows: Ctrl+A → Ctrl+C | Mac: ⌘A → ⌘C</div><div class="wrap">${html}</div><script>try{document.execCommand("selectAll");}catch(e){}<\/script></body></html>`);w.document.close();}
 
 // ══════════════════════════════════════════════════════════════════
@@ -1459,6 +1512,7 @@ function abrirVentana(html,titulo){const w=window.open('','_blank','width=820,he
 let usuariosInited=false;
 function initUsuarios(){if(usuariosInited)return;usuariosInited=true;renderMonthlyKPIs();renderMonthBarChart();renderMonthLineChart();renderKPIs();renderTrendChart();renderPropChart();renderDistChart();renderUserBarChart();renderTable();renderAgencyTable();renderTop5();}
 
+initFechaFiltro();
 renderHoy();
 renderHistAppChart();
 
