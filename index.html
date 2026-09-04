@@ -379,7 +379,7 @@
   .date-filter label { color:var(--text2);font-size:11px;font-weight:600; }
   .date-select { background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 30px 7px 10px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;outline:none; }
   .date-select:focus { border-color:var(--accent); }
-  @media (max-width:768px){ .date-filter label{display:none;} .date-select{max-width:145px;} }
+  @media (max-width:768px){ .date-filter label,.nav-period{display:none;} .date-filter{gap:5px;} .date-select{max-width:125px;padding:7px 22px 7px 7px;} }
 </style>
 </head>
 <body>
@@ -394,7 +394,7 @@
       <div class="nav-sub">Bandejas &amp; Dollys · Control diario</div>
     </div>
   </div>
-  <div class="date-filter"><label for="fecha-filtro">Fecha del reporte</label><select id="fecha-filtro" class="date-select" aria-label="Fecha del reporte"></select><div class="nav-period" id="navPeriod"></div></div>
+  <div class="date-filter"><label for="mes-filtro">Periodo</label><select id="mes-filtro" class="date-select" aria-label="Mes del reporte"></select><select id="dia-filtro" class="date-select" aria-label="Dia del reporte"></select><div class="nav-period" id="navPeriod"></div></div>
 </div>
 
 <div class="main-tabs-bar">
@@ -1322,6 +1322,7 @@ renderTop5();
 // ══════════════════════════════════════════════════════════════════
 let HOY_DATA = DATA.HOY_DATA;
 const DAILY_DATA = DATA.DAILY_DATA || {};
+const DAILY_BY_MONTH = DATA.DAILY_BY_MONTH || {};
 // ══════════════════════════════════════════════════════════════════
 // HIST_APP_DAYS
 // ══════════════════════════════════════════════════════════════════
@@ -1385,19 +1386,54 @@ function fechaATimestamp(fecha){
   const p=String(fecha||'').split('/');
   return p.length===3 ? new Date(Number(p[2]),Number(p[1])-1,Number(p[0])).getTime() : 0;
 }
-function initFechaFiltro(){
-  const selector=document.getElementById('fecha-filtro');
-  if(!selector) return;
-  let fechas=Object.keys(DAILY_DATA).sort((a,b)=>fechaATimestamp(b)-fechaATimestamp(a));
-  if(!fechas.length && HOY_DATA && HOY_DATA.fecha) fechas=[HOY_DATA.fecha];
-  selector.innerHTML=fechas.map(f=>`<option value="${f}">${f}</option>`).join('');
-  if(HOY_DATA && fechas.includes(HOY_DATA.fecha)) selector.value=HOY_DATA.fecha;
-  selector.addEventListener('change',()=>{
-    const seleccionado=DAILY_DATA[selector.value];
-    if(!seleccionado) return;
-    HOY_DATA=seleccionado;
-    renderHoy();
+function construirMesesDesdePlano(){
+  const meses={};
+  const nombres=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  Object.keys(DAILY_DATA).forEach(fecha=>{
+    const p=fecha.split('/');
+    if(p.length!==3) return;
+    const key=`${p[2]}-${p[1]}`;
+    if(!meses[key]) meses[key]={label:`${nombres[Number(p[1])-1]} ${p[2]}`,days:{}};
+    meses[key].days[fecha]=DAILY_DATA[fecha];
   });
+  return meses;
+}
+function initFechaFiltro(){
+  const mesSel=document.getElementById('mes-filtro');
+  const diaSel=document.getElementById('dia-filtro');
+  if(!mesSel||!diaSel) return;
+
+  const meses=Object.keys(DAILY_BY_MONTH).length ? DAILY_BY_MONTH : construirMesesDesdePlano();
+  const clavesMes=Object.keys(meses).sort().reverse();
+  if(!clavesMes.length){
+    mesSel.innerHTML='<option>Sin meses</option>';
+    diaSel.innerHTML='<option>Sin dias</option>';
+    return;
+  }
+
+  mesSel.innerHTML=clavesMes.map(k=>`<option value="${k}">${meses[k].label||k}</option>`).join('');
+  const fechaInicial=HOY_DATA?.fecha||'';
+  const p=fechaInicial.split('/');
+  const mesInicial=p.length===3?`${p[2]}-${p[1]}`:clavesMes[0];
+  mesSel.value=clavesMes.includes(mesInicial)?mesInicial:clavesMes[0];
+
+  function cargarDias(preferida){
+    const grupo=meses[mesSel.value]?.days||{};
+    const fechas=Object.keys(grupo).sort((a,b)=>fechaATimestamp(b)-fechaATimestamp(a));
+    diaSel.innerHTML=fechas.map(f=>`<option value="${f}">${f}</option>`).join('');
+    diaSel.value=preferida&&fechas.includes(preferida)?preferida:(fechas[0]||'');
+    if(diaSel.value&&grupo[diaSel.value]){
+      HOY_DATA=grupo[diaSel.value];
+      renderHoy();
+    }
+  }
+
+  mesSel.addEventListener('change',()=>cargarDias(''));
+  diaSel.addEventListener('change',()=>{
+    const dato=meses[mesSel.value]?.days?.[diaSel.value];
+    if(dato){HOY_DATA=dato;renderHoy();}
+  });
+  cargarDias(fechaInicial);
 }
 function renderHoy() {
   const d=HOY_DATA, ambaTotal=d.region_amba_tablada+d.region_amba_foraneos;
