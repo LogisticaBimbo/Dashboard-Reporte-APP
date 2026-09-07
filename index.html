@@ -1228,17 +1228,7 @@ function setMonthTab(type, btn) {
 }
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
-renderMonthlyKPIs();
-renderMonthBarChart();
-renderMonthLineChart();
-renderKPIs();
-renderTrendChart();
-renderPropChart();
-renderDistChart();
-renderUserBarChart();
-renderTable();
-renderAgencyTable();
-renderTop5();
+// Los componentes históricos anteriores se inicializan solo si sus contenedores existen.
 
 
 // ══════════════════════════════════════════════════════════════════
@@ -1268,7 +1258,7 @@ function switchHistSub(sub, btn) {
   btn.classList.add('active');
   document.querySelectorAll('.hist-subpanel').forEach(p=>p.classList.remove('active'));
   document.getElementById('hist-subpanel-'+sub).classList.add('active');
-  if (sub==='usuarios') initUsuarios();
+  if (sub==='usuarios' && document.getElementById('userTable')) initUsuarios();
 }
 function setMonthTab(type, btn) {
   document.querySelectorAll('.month-tab').forEach(t=>t.classList.remove('active'));
@@ -1532,7 +1522,6 @@ function initUsuarios(){if(usuariosInited)return;usuariosInited=true;renderMonth
 
 initFechaFiltro();
 renderHoy();
-renderHistAppChart();
 
 
 
