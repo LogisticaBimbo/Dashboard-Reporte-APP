@@ -537,7 +537,7 @@
 (async function(){
 try{
 var _ov=document.getElementById('loading-overlay');
-var resp=await fetch('data.json');
+var resp=await fetch('data.json?v='+Date.now());
 if(!resp.ok) throw new Error('HTTP '+resp.status);
 var DATA=await resp.json();
 if(_ov) _ov.style.display='none';
