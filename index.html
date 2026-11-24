@@ -504,7 +504,7 @@
       <div class="history-filter"><label>Año</label><select id="hist-year" class="history-select"></select></div>
       <div class="history-filter"><label>Mes</label><select id="hist-month" class="history-select"></select></div>
       <div class="history-filter"><label>Región</label><select id="hist-region" class="history-select"></select></div>
-      <div class="history-filter"><label>Agencia</label><select id="hist-agency" class="history-select"></select></div>
+      <div class="history-filter"><label>Agencia</label><select id="hist-agency" class="history-select"></select></div><div class="history-filter"><label>Cliente</label><select id="hist-client" class="history-select"><option value="">Todos los clientes</option></select></div>
       <div style="margin-left:auto;font-size:11px;color:var(--text3);" id="hist-period-label"></div>
     </div>
     <div class="section-header" style="margin-top:0"><div class="section-dot" style="background:var(--red);box-shadow:0 0 8px var(--red)"></div><div class="section-title">Alertas Críticas</div><div class="section-desc">¿Dónde actuar primero?</div></div>
@@ -1481,7 +1481,7 @@ function initHistorico(){
 }
 function histFiltered(){
   const y=Number(document.getElementById('hist-year')?.value||0),m=Number(document.getElementById('hist-month')?.value||0),rg=document.getElementById('hist-region')?.value||'',ag=document.getElementById('hist-agency')?.value||'';
-  return (HISTORICO.records||[]).filter(r=>(!y||r.anio===y)&&(!m||r.mes_num===m)&&(!rg||r.region===rg)&&(!ag||r.agencia===ag));
+  const cl=histClienteValor();return (HISTORICO.records||[]).filter(r=>(!y||r.anio===y)&&(!m||r.mes_num===m)&&(!rg||r.region===rg)&&(!ag||r.agencia===ag)&&(!cl||cadenaDe(r.cliente)===cl));
 }
 function groupRows(rows){const mp=new Map();rows.forEach(r=>{const k=r.ruta+'|'+r.cliente+'|'+r.agencia;if(!mp.has(k))mp.set(k,{ruta:r.ruta,cliente:r.cliente,agencia:r.agencia,region:r.region,rows:[]});mp.get(k).rows.push(r)});return [...mp.values()];}
 function renderHistorico(){
@@ -1500,7 +1500,7 @@ function renderHistAlerts(rows,groups,dates){
   // Posicion vigente: ultima fecha disponible, respetando Region y Agencia seleccionadas.
   const rg=document.getElementById('hist-region')?.value||'';
   const ag=document.getElementById('hist-agency')?.value||'';
-  const scope=(HISTORICO.records||[]).filter(r=>(!rg||r.region===rg)&&(!ag||r.agencia===ag));
+  const cl=histClienteValor();const scope=(HISTORICO.records||[]).filter(r=>(!rg||r.region===rg)&&(!ag||r.agencia===ag)&&(!cl||cadenaDe(r.cliente)===cl));
   const reference=scope.filter(r=>r.anio===2026&&r.mes_num>=6&&r.mes_num<=8);
   const allDates=[...new Set(scope.map(r=>r.fecha))].sort((a,b)=>fechaATimestamp(a)-fechaATimestamp(b));
   const currentDate=allDates.at(-1);
@@ -1548,7 +1548,7 @@ function renderHistCharts(rows){const dm={},rg={};rows.forEach(r=>{const m=`${r.
 const DOLLY_CAP_P=30,DOLLY_CAP_V=60;
 const dollyView={amba:'exc',hist:'nec'};
 function dollyUso(bp,bv){return Math.ceil((Number(bp)||0)/DOLLY_CAP_P+(Number(bv)||0)/DOLLY_CAP_V);}
-function hfmtB(r){return ((Number(r.bp)||0)+(Number(r.bv)||0)).toLocaleString('es-AR');}
+function hfmtB(r){const p=Number(r.bp)||0,v=Number(r.bv)||0;return `<span title="Con producto: ${p.toLocaleString('es-AR')} · Vacías: ${v.toLocaleString('es-AR')}" style="cursor:help;border-bottom:1px dotted var(--text3)">${(p+v).toLocaleString('es-AR')}</span>`;}
 function saldoRet(r){const st=Number(r.stock!=null?r.stock:r.stock_dolly)||0,au=Number(r.autorizado)||0;return Math.max(0,st-Math.max(au,dollyUso(r.bp,r.bv)));}
 function marcarVista(scope){['exc','sal','nec','uso'].forEach(v=>{const b=document.getElementById('dv-'+scope+'-'+v);if(b)b.classList.toggle('active',dollyView[scope]===v);});}
 function setDollyView(scope,view){dollyView[scope]=view;marcarVista(scope);if(scope==='hist'){histDollyPage=1;renderHistDollyPage();}else{renderAmbaDollyView(HOY_DATA);}}
@@ -1585,6 +1585,10 @@ function renderHistDollyPage(){
   document.getElementById('hist-dolly-page-info').textContent=`${all.length} casos · Página ${histDollyPage} de ${pages} · Orden: uso − autorizado ↓`;
   document.getElementById('hist-dolly-page-controls').innerHTML=`<button class="hist-page-btn" ${histDollyPage===1?'disabled':''} onclick="setHistDollyPage(${histDollyPage-1})">Anterior</button><button class="hist-page-btn" ${histDollyPage===pages?'disabled':''} onclick="setHistDollyPage(${histDollyPage+1})">Siguiente</button>`;
 }
+
+function cadenaDe(c){const s=String(c||'');const i=s.indexOf(' - ');return (i>0?s.slice(0,i):s).trim();}
+let histClienteListo=false;
+function histClienteValor(){const sel=document.getElementById('hist-client');if(!sel)return '';if(!histClienteListo){histClienteListo=true;const cad=[...new Set((HISTORICO.records||[]).map(r=>cadenaDe(r.cliente)))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'es'));sel.innerHTML='<option value="">Todos los clientes</option>'+cad.map(x=>`<option>${x}</option>`).join('');sel.addEventListener('change',()=>{histDollyPage=1;renderHistorico();});}return sel.value;}
 
 // LAZY INIT & ARRANQUE
 // ══════════════════════════════════════════════════════════════════
